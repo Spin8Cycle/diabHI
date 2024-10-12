@@ -1,5 +1,6 @@
-from dash import dash_table
+from dash import dash_table, Dash, Input, Output, html
 import dash_bootstrap_components as dbc
+import dash_core_components as dcc
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 
