@@ -124,7 +124,8 @@ class ModeLogger:
             
             multi_index = pd.MultiIndex.from_tuples(ind, names=['Model', 'Insert D/T'])
             rdf = pd.DataFrame(data=vals, index=multi_index)
-            rdf['rank'] = rdf.rank(axis=0, ascending=False).mean(axis=1)
+            rdf['Overall Rank'] = rdf.rank(axis=0, ascending=False).mean(axis=1)
+            rdf['PerModel Rank']=rdf.groupby(by='Model').rank(ascending=False).mean(axis=1)
 
             return rdf
         else:
