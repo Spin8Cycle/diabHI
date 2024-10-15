@@ -5,7 +5,7 @@ import pandas as pd
 import ast
 import sklearn
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import cross_validate
+from sklearn.model_selection import cross_validate, GridSearchCV
 
 
 class ModeLogger:
@@ -30,41 +30,65 @@ class ModeLogger:
             models:sklearn.pipeline.Pipeline | sklearn.base.BaseEstimator, 
             preprocessors: sklearn.pipeline.Pipeline,
             folds: int|sklearn.model_selection._split.StratifiedKFold,
-            scoring:list|str|None
+            scoring:list|str|None,
+            param_grid:bool|dict=False,
+            search_cv=GridSearchCV,
+            refit:bool|str|callable=False
         ):
         self.models = models
         self.preprocessors = preprocessors
         self.folds = folds
         self.scoring = scoring
-
+        self.param_grid=param_grid
 
         self.final_pipeline =Pipeline(
         steps=[('preprocessing', preprocessors),
                ('model', models)]
         )
 
-        self.base = cross_validate(
-            estimator=self.final_pipeline,
-            X = X_train,
-            y = y_train.values.ravel(),
-            cv=folds,
-            scoring=scoring,
-            verbose=1
-        )
+        if self.param_grid:
+            self.base = search_cv(
+                estimator=self.final_pipeline,
+                param_grid=self.param_grid,
+                scoring=self.scoring,
+                cv = self.folds,
+                refit=refit
+            )
+        else:
+            self.base = cross_validate(
+                estimator=self.final_pipeline,
+                X = X_train,
+                y = y_train.values.ravel(),
+                cv=folds,
+                scoring=scoring,
+                verbose=1
+            )
 
         #return (self.base, self.final_pipeline, self.models, self.preprocessors, self.folds, self.scoring)
 
     def model_stats(self):
         model_name = str(type(self.final_pipeline.named_steps['model']))[8:-2].split('.')[-1]
-        scores = dict()
-        for i in self.base:
-            if i.startswith('test_'):
-                v = np.round(self.base[i].mean(), 4).item()
-                k = i.replace('test_','')
-                scores[k] = v
-        
         pre_trans = [i[1] for i in self.preprocessors.transformers]
-        hyperparams =  self.models.get_params()
+        if self.param_grid:
+
+            grid_results = pd.DataFrame(self.base.cv_results_)
+            scores = dict()
+            for i in grid_results.columns:
+                if i.startswith('mean_test_'):
+                    v = grid_results[i]
+                    k = i.replace('mean_test_', '')
+                    scores[k] = v
+            
+
+            
+        else:
+            scores = dict()
+            for i in self.base:
+                if i.startswith('test_'):
+                    v = np.round(self.base[i].mean(), 4).item()
+                    k = i.replace('test_','')
+                    scores[k] = v
+            hyperparams =  self.models.get_params()
 
         dt_now = datetime.now().strftime('%m/%d/%Y %H:%M')
         self.stats = pd.DataFrame({'Model':[model_name], 
