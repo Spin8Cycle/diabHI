@@ -33,7 +33,7 @@ class ModeLogger:
             scoring:list|str|None,
             param_grid:bool|dict=False,
             search_cv=GridSearchCV,
-            refit:bool|str|callable=False
+            refit:bool|str=False
         ):
         self.models = models
         self.preprocessors = preprocessors
@@ -54,6 +54,9 @@ class ModeLogger:
                 cv = self.folds,
                 refit=refit
             )
+
+            self.base.fit(X_train, y_train.values.ravel())
+            
         else:
             self.base = cross_validate(
                 estimator=self.final_pipeline,
@@ -67,37 +70,46 @@ class ModeLogger:
         #return (self.base, self.final_pipeline, self.models, self.preprocessors, self.folds, self.scoring)
 
     def model_stats(self):
+        dt_now = datetime.now().strftime('%m/%d/%Y %H:%M')
         model_name = str(type(self.final_pipeline.named_steps['model']))[8:-2].split('.')[-1]
         pre_trans = [i[1] for i in self.preprocessors.transformers]
+        scores = dict()
+
         if self.param_grid:
-
             grid_results = pd.DataFrame(self.base.cv_results_)
-            scores = dict()
-            for i in grid_results.columns:
-                if i.startswith('mean_test_'):
-                    v = grid_results[i]
-                    k = i.replace('mean_test_', '')
-                    scores[k] = v
-            
+            # Rename Metric Columns
+            to_rename= [i for i in grid_results.columns if i.startswith('mean_test_')]
+            mapper={i:i.replace('mean_test_', '') for i in to_rename}
+            grid_results.rename(columns=mapper, inplace=True)
 
+            # Prepare M/S column
+            m_s = list(self.scoring)
+            sc = grid_results[m_s].to_dict(orient='records')
+            prms = grid_results[['params']].to_dict(orient='records')
+
+            self.stats = pd.DataFrame({'Model':[model_name+'_searchCV' for i in sc], 
+                            'M/S': sc, 
+                            'Hyperparameters': prms ,
+                            'Preprocessors':[pre_trans for i in sc],
+                            'Folds': [self.folds for i in sc], 
+                            'Insert D/T':[dt_now for i in sc]
+                            })\
+                            .set_index('Model')
             
         else:
-            scores = dict()
             for i in self.base:
                 if i.startswith('test_'):
                     v = np.round(self.base[i].mean(), 4).item()
                     k = i.replace('test_','')
                     scores[k] = v
             hyperparams =  self.models.get_params()
-
-        dt_now = datetime.now().strftime('%m/%d/%Y %H:%M')
-        self.stats = pd.DataFrame({'Model':[model_name], 
-                        'M/S': [scores], 
-                        'Hyperparameters': [hyperparams] ,
-                        'Preprocessors':[pre_trans],
-                        'Folds': [self.folds], 
-                        'Insert D/T':dt_now})\
-            .set_index('Model')
+            self.stats = pd.DataFrame({'Model':[model_name], 
+                            'M/S': [scores], 
+                            'Hyperparameters': [hyperparams] ,
+                            'Preprocessors':[pre_trans],
+                            'Folds': [self.folds], 
+                            'Insert D/T':dt_now})\
+                .set_index('Model')
 
         return self.stats
 
