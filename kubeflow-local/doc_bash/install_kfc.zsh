@@ -1,0 +1,1 @@
+while ! kustomize build manifests/example | kubectl apply -f -; do echo "Retrying to apply resources"; sleep 20; done
