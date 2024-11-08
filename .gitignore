@@ -3,3 +3,5 @@ mlruns/
 mlartifacts
 kubeflow_platform_manifest/manifests-master
 kubeflow-local/manifests
+**my_configs
+*prometheus*
